@@ -23,82 +23,75 @@ if not all([DINGTALK_WEBHOOK, DINGTALK_SECKEY, JSESSIONID]):
     print("请在GitHub仓库的 Secrets 设置中配置 DINGTALK_WEBHOOK, DINGTALK_SECKEY, 和 JSESSIONID。")
     exit(1) # 如果密钥不全，则退出脚本
 
-# 重试逻辑配置
-MAX_ATTEMPTS = 3  # 总尝试次数（首次尝试 + 2次重试）
-RETRY_DELAY_SECONDS = 5  # 每次重试间的等待秒数
-RETRY_ERROR_MESSAGE = "抱歉由于网络或设备问题，暂时无法获得电表电量及状态信息,请稍后再试!"
-
-# 请求体配置（通常无需修改）
-QUERY_PAYLOAD = {
-    "query_elec_roominfo": {
-        "aid": "0030000000006001", "account": "26577",
-        "room": {"roomid": "20161009111811624619", "room": "1栋609"},
-        "floor": {"floorid": "6", "floor": "6层"},
-        "area": {"area": "天津工业大学", "areaname": "天津工业大学"},
-        "building": {"buildingid": "20161008184448464922", "building": "西苑7号楼"}
-    }
-}
 # --- 配置区域结束 ---
 
 
 def get_electricity_info():
     """
-    发送请求以获取电费信息，并包含完整的重试逻辑。
+    使用“一丝不差”的终极模拟方式发送请求。
     函数将返回一个元组：(结果字典, 错误信息字符串)。成功时错误为None，失败时结果为None。
     """
     url = "http://wxjdf.tiangong.edu.cn:9910/web/Common/Tsm.html"
+    
+    # 完整复刻原始请求的所有13个请求头，确保最高保真度
     headers = {
-        'Host': 'wxjdf.tiangong.edu.cn:9910', 'Connection': 'keep-alive',
-        'Accept': 'application/json, text/javascript, */*; q=0.01', 'X-Requested-With': 'XMLHttpRequest',
-        'User-Agent': 'Mozilla/5.0 (Linux; Android 12; SM-F926U Build/V417IR; wv) AppleWebKit/5.36 (KHTML, like Gecko) Version/4.0 Chrome/101.0.4951.61 Safari/5.36 MMWEBID/2279 MicroMessenger/8.0.58.2841(0x28003A35) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64',
-        'Content-Type': 'application/x-form-urlencoded; charset=UTF-8',
+        'Host': 'wxdf.tiangong.edu.cn:9910',
+        'Connection': 'keep-alive',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 12; SM-F926U Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/101.0.4951.61 Safari/537.36 MMWEBID/2279 MicroMessenger/8.0.58.2841(0x28003A35) WeChat/arm64 Weixin NetType/WIFI Language/zh_CN ABI/arm64',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'Origin': 'http://wxjdf.tiangong.edu.cn:9910',
         'Referer': 'http://wxjdf.tiangong.edu.cn:9910/web/common/checkEle.html?ticket=ff9d7ff75466e04703b7717db92827d7&visitor=0&appId=33&synAccessSource=wechat-work&loginFrom=wechat-work&type=app',
-        'Accept-Encoding': 'gzip, deflate', 'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Cookie': f'JSESSIONID={JSESSIONID}', 'Proxy-Connection': 'Close',
+        'Accept-Encoding': 'gzip, deflate',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cookie': f'JSESSIONID={JSESSIONID}',
+        'Proxy-Connection': 'Close',
     }
-    jsondata_string = json.dumps(QUERY_PAYLOAD, separators=(',', ':'))
+
+    # 完整复刻请求体
+    json_data_dict = {
+      "query_elec_roominfo": {
+        "aid": "0030000000006001", "account": "26577",
+        "room": {"roomid": "20161009111811624619", "room": "1栋609"},
+        "floor": {"floorid": "6", "floor": "6层"},
+        "area": {"area": "天津工业大学", "areaname": "天津工业大学"},
+        "building": {"buildingid": "20161008184448464922", "building": "西苑7号楼"}
+      }
+    }
+    jsondata_string = json.dumps(json_data_dict, separators=(',', ':'))
     payload = {
         'jsondata': jsondata_string, 'funname': 'synjones.onecard.query.elec.roominfo', 'json': 'true'
     }
 
-    # 循环尝试发送请求
-    for attempt in range(MAX_ATTEMPTS):
-        print(f"🚀 第 {attempt + 1} / {MAX_ATTEMPTS} 次尝试: 正在发送请求...")
-        try:
-            response = requests.post(url, headers=headers, data=payload, timeout=15)
-            if response.status_code != 200:
-                return None, f"请求失败：服务器返回了错误的状态码 {response.status_code}。"
-            
-            response_data = response.json()
-            errmsg = response_data.get("query_elec_roominfo", {}).get("errmsg", "")
+    print("🚀 正在使用终极模拟脚本发送请求...")
+    try:
+        response = requests.post(url, headers=headers, data=payload, timeout=15)
+        
+        # 首先检查响应是否为JSON
+        response_data = response.json()
+        
+        # 解析返回的数据
+        errmsg = response_data.get("query_elec_roominfo", {}).get("errmsg", "")
+        success_match = re.search(r'剩余购电量:(\d+\.?\d*)度', errmsg)
 
-            if errmsg == RETRY_ERROR_MESSAGE:
-                print(f"⚠️ 收到了需要重试的特定错误信息: '{errmsg}'")
-                if attempt < MAX_ATTEMPTS - 1:
-                    print(f"   将在 {RETRY_DELAY_SECONDS} 秒后重试...")
-                    time.sleep(RETRY_DELAY_SECONDS)
-                    continue
-                else:
-                    return None, f"已达到最大尝试次数（{MAX_ATTEMPTS}次）。最后一次错误: {errmsg}"
-            
-            success_match = re.search(r'剩余购电量:(\d+\.?\d*)度', errmsg)
-            if success_match:
-                result = {
-                    "room_info": f"{QUERY_PAYLOAD['query_elec_roominfo']['building']['building']} {QUERY_PAYLOAD['query_elec_roominfo']['room']['room']}",
-                    "remaining_kwh": success_match.group(1)
-                }
-                return result, None
-            else:
-                return None, f"查询失败，收到未知的服务器消息: {errmsg}"
+        if success_match:
+            # 如果成功匹配到电量信息
+            result = {
+                "room_info": f"{json_data_dict['query_elec_roominfo']['building']['building']} {json_data_dict['query_elec_roominfo']['room']['room']}",
+                "remaining_kwh": success_match.group(1)
+            }
+            return result, None
+        else:
+            # 如果是JSON但没有匹配到电量，说明是另一种错误
+            return None, f"查询失败，服务器消息: {errmsg}"
 
-        except json.JSONDecodeError:
-            error_preview = response.text[:300].strip() if response and response.text else "无法获取响应内容"
-            return None, f"服务器响应格式错误（不是JSON）。这很可能是因为`JSESSIONID`过期了。\n\n**服务器响应预览**:\n```\n{error_preview}\n```"
-        except requests.exceptions.RequestException as e:
-            return None, f"网络请求异常: {e}"
-    
-    return None, f"经过 {MAX_ATTEMPTS} 次尝试后，查询依然失败。"
+    except json.JSONDecodeError:
+        # 如果返回的不是JSON（比如 “系统异常!” 纯文本）
+        return None, f"服务器响应格式错误（不是JSON）。响应预览:\n```\n{response.text[:300]}\n```"
+    except requests.exceptions.RequestException as e:
+        # 如果发生网络错误
+        return None, f"网络请求异常: {e}"
 
 
 def send_to_dingtalk(title, text):
@@ -141,11 +134,10 @@ if __name__ == "__main__":
         print(f"✅ 查询成功: {result['room_info']}, 剩余电量: {result['remaining_kwh']} 度")
         send_to_dingtalk(title, message)
 
-        # --- ⭐ 新增：低电量预警判断 ---
+        # --- 低电量预警判断 ---
         try:
             remaining_float = float(result['remaining_kwh'])
             if remaining_float < 10:
-                # 如果电量低于10度，构造并发送第二条预警消息
                 alert_title = "⚠️ 注意！电量快要用完啦！"
                 alert_message = (
                     f"### 🚨 {alert_title}\n\n"
@@ -156,8 +148,7 @@ if __name__ == "__main__":
                     f"<font color='#808080' size=2>预警时间: {current_time}</font>"
                 )
                 print(f"发出低电量预警: {remaining_float} 度 < 10 度")
-                # 稍微延迟一下，避免两条消息发送太快
-                time.sleep(1)
+                time.sleep(1) # 延迟1秒
                 send_to_dingtalk(alert_title, alert_message)
         except ValueError:
             print("❌ 解析剩余电量为数字时失败，无法进行低电量判断。")
@@ -167,12 +158,12 @@ if __name__ == "__main__":
         title = "哎呀，查询失败了"
         message = (
             f"### 🚨 {title}\n\n"
-            f"电小璃努力尝试了好几次，但没能成功获取到电费信息。\n\n"
+            f"小助手没能成功获取到电费信息。\n\n"
             f"**失败详情**:\n"
             f"> {error}\n\n"
-            f"**我猜可能是**:\n"
-            f"> 1. **`JSESSIONID` 过期了** (最常见！)，需要去GitHub Secrets里更新一下哦。\n"
-            f"> 2. 学校的查询服务器暂时“打了个盹”，可以稍后看看会不会自动恢复。\n\n"
+            f"**可能原因**:\n"
+            f"> 1. **`JSESSIONID` 过期了** (最常见！)，需要去GitHub Secrets里更新。\n"
+            f"> 2. 学校服务器暂时不稳定，返回了异常信息。\n\n"
             f"***\n"
             f"<font color='#808080' size=2>报告时间: {current_time}</font>"
         )
