@@ -49,7 +49,6 @@ QUERY_PAYLOAD = {
         }
     }
 }
-
 # --- 配置区域结束 ---
 
 
@@ -63,20 +62,18 @@ def get_electricity_info():
         'User-Agent': 'Mozilla/5.0 (Linux; Android 12; SM-F926U Build/V417IR; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/101.0.4951.61 Safari/537.36',
     }
     
-    # 构造请求体
-    jsondata_str = json.dumps(QUERY_PAYLOAD)
-    jsondata_encoded = urllib.parse.quote(jsondata_str)
     form_data = {
-        'jsondata': jsondata_encoded,
+        'jsondata': urllib.parse.quote(json.dumps(QUERY_PAYLOAD)),
         'funname': 'synjones.onecard.query.elec.roominfo',
         'json': 'true'
     }
     
     try:
-        response = requests.post(url, headers=headers, data=form_data, timeout=10)
-        response.raise_for_status()
+        response = requests.post(url, headers=headers, data=form_data, timeout=15)
+        response.raise_for_status() # 检查HTTP状态码是否为2xx
         result = response.json()
         
+        # 成功解析JSON后的逻辑
         if result.get("query_elec_roominfo", {}).get("retcode") == "0":
             errmsg = result["query_elec_roominfo"]["errmsg"]
             match = re.search(r'剩余购电量:(\d+\.?\d*)度', errmsg)
@@ -85,15 +82,25 @@ def get_electricity_info():
                 room_info = f"{QUERY_PAYLOAD['query_elec_roominfo']['building']['building']} {QUERY_PAYLOAD['query_elec_roominfo']['room']['room']}"
                 return room_info, remaining_kwh
             else:
-                return None, f"解析电量信息失败: {errmsg}"
+                return None, f"成功请求但解析电量信息失败: {errmsg}"
         else:
-            errmsg = result.get("query_elec_roominfo", {}).get("errmsg", "未知错误，可能是JSESSIONID已过期")
+            errmsg = result.get("query_elec_roominfo", {}).get("errmsg", "未知错误，但服务器返回了JSON")
             return None, f"查询失败: {errmsg}"
 
+    except requests.exceptions.HTTPError as e:
+        return None, f"HTTP 请求错误: {e}. 服务器返回了非2xx状态码。"
     except requests.exceptions.RequestException as e:
         return None, f"网络请求异常: {e}"
     except json.JSONDecodeError:
-        return None, "服务器返回数据格式非JSON，无法解析"
+        # 关键的调试部分：当服务器返回的不是JSON时，打印出详细信息
+        error_message = (
+            "**服务器返回内容无法按JSON解析**\n\n"
+            "> 这通常意味着 `JSESSIONID` 已过期或IP被限制。\n\n"
+            f"> **服务器状态码**: `{response.status_code}`\n\n"
+            f"> **服务器返回内容预览 (前300字符)**:\n"
+            f"```\n{response.text[:300]}\n```"
+        )
+        return None, error_message
 
 
 def send_to_dingtalk(title, text):
@@ -143,6 +150,7 @@ if __name__ == "__main__":
         send_to_dingtalk(title, message_text)
     else:
         title = "电费查询失败"
+        # 失败时，data变量会包含详细的调试信息
         message_text = (
             f"### ⚠️ 电费查询失败\n\n"
             f"**失败原因**: {data}"
