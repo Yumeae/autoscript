@@ -1,0 +1,50 @@
+# 工作流的名称，会显示在 GitHub Actions 页面
+name: wdm_checker_qmsg
+
+# 定义触发工作流的事件
+on:
+  # 允许你手动在 Actions 页面点击按钮来触发
+  workflow_dispatch:
+
+  # 定义定时任务
+  schedule:
+    # 使用 cron 表达式，时间是 UTC
+    # '0 14 * * *' 代表每天的 UTC 时间 14:00，即北京时间 22:00 (晚上10点)
+    - cron: '10 14 * * *'
+
+# 定义工作流中的任务
+jobs:
+  # 定义一个名为 "run-checker" 的任务
+  run-checker:
+    # 指定任务运行的虚拟环境
+    runs-on: ubuntu-latest
+
+    # 定义任务的执行步骤
+    steps:
+      # 第一步：检出（下载）你的代码到虚拟环境中
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 第二步：安装并设置 Python 环境
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 第三步：安装 Chrome 浏览器和对应的 ChromeDriver
+      # 这是运行 Selenium 的关键
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@latest
+
+      # 第四步：根据 requirements.txt 文件安装 Python 依赖库
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 第五步：运行你的 Python 脚本
+      - name: Run Python Script
+        env:
+          # 将之前设置的 Secrets 注入到环境变量中
+          QMSG_KEY: ${{ secrets.QMSG_KEY }}
+          QMSG_TARGET_QQS_JSON: ${{ secrets.QMSG_TARGET_QQS_JSON }}
+        # 执行脚本，确保 'wdm_checker.py' 和你的脚本文件名一致
+        run: python wdm_checker_qmsg.py
