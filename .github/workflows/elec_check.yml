@@ -1,0 +1,49 @@
+# 工作流名称
+name: elec_check
+
+# 触发工作流的事件
+on:
+  # 1. 定时触发 (cron 表达式)
+  schedule:
+    # - cron: '0 8 * * *' # 表示每天 UTC 时间 0 点 (北京时间早上8点) 运行
+    # 由于北京时间比 UTC 早 8 小时，所以 UTC 的 00:00 就是北京时间的 08:00
+    - cron: '0 4 * * *' # 北京时间早上 8 点
+
+  # 2. 手动触发 (方便测试)
+  workflow_dispatch:
+
+# 定义工作任务
+jobs:
+  # 任务 ID，可以自定义
+  check_bill_and_notify:
+    # 运行此任务的虚拟机环境
+    runs-on: ubuntu-latest
+
+    # 任务执行的步骤
+    steps:
+      # 步骤 1: 检出代码
+      # 拉取你的仓库代码到虚拟机
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 步骤 2: 设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9' # 指定 Python 版本
+
+      # 步骤 3: 安装依赖库
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # 步骤 4: 执行电费查询脚本
+      - name: Run electricity check script
+        env:
+          # 将 GitHub Secrets 注入到环境变量中，供 Python 脚本读取
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECKEY: ${{ secrets.DINGTALK_SECKEY }}
+          JSESSIONID: ${{ secrets.JSESSIONID }}
+        run: |
+          python elec_check.py
