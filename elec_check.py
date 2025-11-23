@@ -10,7 +10,7 @@ import base64
 import urllib.parse
 import re
 
-# --- 1. 配置区域 ---
+# --- 1. 配置区域---
 
 # 从环境变量（GitHub Secrets）中加载所有敏感信息
 DINGTALK_WEBHOOK = os.environ.get('DINGTALK_WEBHOOK')
