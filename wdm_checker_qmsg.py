@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
 # ==============================================================================
-# --- 1. 配置区域 ---
+# --- 1. 配置区域---
 # ==============================================================================
 
 # 日常模式 URL
